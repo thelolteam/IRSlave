@@ -61,6 +61,7 @@ String parameter[7];
 
 WiFiEventHandler gotIpEventHandler;
 WiFiEventHandler stationModeDisconnectedHandler;
+WiFiEventHandler softAPStationDisconnected, softAPStationConnected;
 
 void printDetails(){
   Serial.print("\n\nId: ");
@@ -395,10 +396,15 @@ void parameterDecode()
   else if(parameter[1].equals("action@task")){
     sendReply("IRNode: IR Request");
     action = parameter[6];
+    action.toUpperCase();
     if(fileName.find(action) != fileName.end()){
       blastIR(action);
     }else{
       //Meaning App has wrong infor about available IR Actions
+      if(action.equalsIgnoreCase("OFF")){
+        action = "ON";
+        blastIR(action);
+      }
       sendNodeStat();
     }
   }
@@ -452,6 +458,7 @@ void parameterDecode()
   }else if(parameter[1].equals("action@saveIR")){
     sendReply("IRNode: IR Save Request");
     action = parameter[6];
+    action.toUpperCase();
     bool success = saveIR(action);
     sendNodeStat();
   }else if(parameter[1].equals("action@remove")){
@@ -513,6 +520,15 @@ void startAPMode(){
   WiFi.mode(WIFI_AP);
   String apSsid = "Node_";
   apSsid.concat(name);
+  
+  softAPStationConnected = WiFi.onSoftAPModeStationConnected([](const WiFiEventSoftAPModeStationConnected& event){
+    digitalWrite(led, LOW);
+  });
+
+  softAPStationDisconnected = WiFi.onSoftAPModeStationDisconnected([](const WiFiEventSoftAPModeStationDisconnected& event){
+    digitalWrite(led, HIGH);
+  });
+  
   WiFi.softAP(apSsid, "", 1, 0, 1);
   delay(100);
   IPAddress myIP(192, 168, 1, 1);
@@ -578,8 +594,10 @@ void loop() {
       unsigned long i = millis();
       while(!ipAssigned){
         if(millis() - i < 5000)
+        {
           yield();
-        delay(200);
+          delay(200);
+        }
       }
       configure();
       server.on("/", handleRoot);
